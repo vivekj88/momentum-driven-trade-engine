@@ -5,10 +5,16 @@ import datetime
 def check_earnings_and_ex_dividend(stock_symbol):
     # Get the stock information
     stock_data = yf.Ticker(stock_symbol)
+    print(stock_data.earnings_dates)
     stock_info = stock_data.info
+    print(stock_info)
 
     # Extract earnings announcement date (if available)
     earnings_dates_exist = False
+    print("has earnings:")
+    print(stock_data.get_earnings_dates(1))
+    print(hasattr(stock_data, "earnings_dates"))
+
     if hasattr(stock_data, 'earnings_dates') and stock_data.earnings_dates is not None and len(stock_data.earnings_dates.get("Reported EPS").index.date) > 0:
         earnings_dates = stock_data.earnings_dates.get("Reported EPS").index.date
         earnings_dates_exist = True
@@ -38,6 +44,6 @@ def check_earnings_and_ex_dividend(stock_symbol):
     return f"{earnings_message}\n{ex_dividend_message}"
 
 # Example usage
-stock_symbol = 'NVDA'  # Replace with your desired stock symbol
+stock_symbol = 'AACG'  # Replace with your desired stock symbol
 result = check_earnings_and_ex_dividend(stock_symbol)
 print(result)
