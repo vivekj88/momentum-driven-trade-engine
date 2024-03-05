@@ -9,10 +9,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
+# Set options to show all rows and columns
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
 
 # Get tickers
 def get_nasdaq_tickers():
-    filename = 'python/nasdaq.csv'
+    filename = 'nasdaq.csv'
 
     # tickers=['ACET', 'ACGL', 'ACHC', 'ACHL']
     tickers=[]
@@ -27,7 +30,7 @@ def get_nasdaq_tickers():
     return tickers
 
 def check_earnings_and_ex_dividend(stock_symbol):
-    time.sleep(10.000)
+    #time.sleep(10.000)
     # Get the stock information
     stock_data = yf.Ticker(stock_symbol)
     stock_info = stock_data.info
@@ -145,4 +148,4 @@ sorted_data = dict(sorted(tickers_meeting_criteria.items(), key=lambda item: ite
 df = pd.DataFrame.from_dict(sorted_data, orient='index', columns=['value'])
 
 # Print the DataFrame
-print(df.to_string)
+print(df)
