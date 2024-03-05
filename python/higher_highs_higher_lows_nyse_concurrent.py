@@ -1,21 +1,19 @@
 import yfinance as yf
 import datetime
 import pandas as pd
-import requests
-import bs4
 import matplotlib.pyplot as plt
 import warnings
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
 # Set options to show all rows and columns
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 
 # Get tickers
 def get_nasdaq_tickers():
-    filename = 'nasdaq.csv'
+    filename = 'nyse.csv'
 
     tickers=[]
     with open(filename, "r") as csvfile:
@@ -25,7 +23,7 @@ def get_nasdaq_tickers():
         for line in csvfile:
         # Extract the first element (assuming it's the ticker symbol)
             tickers.append(line.strip().split(",")[0])
-    tickers.append("COMP")
+    tickers.append("^NYA")
     return tickers
 
 def check_earnings_and_ex_dividend(stock_symbol):
@@ -110,9 +108,9 @@ for ticker in valid_tickers:
         except Exception as e:
                 print(f"{ticker} threw an exception")
 
-# Calculate daily returns for COMP
+# Calculate daily returns for ^NYA
 daily_return = {}
-daily_return["COMP"] = data["Adj Close"]["COMP"].pct_change()
+daily_return["^NYA"] = data["Adj Close"]["^NYA"].pct_change()
 
 # Check if each ticker has higher highs and higher lows
 count_meeting_criteria = 0
@@ -125,13 +123,13 @@ for ticker in valid_tickers:
             if len(ticker_highs[ticker]) > 1 and len(ticker_lows[ticker]) > 1 and \
                 all(ticker_highs[ticker][i] > ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
                     all(ticker_lows[ticker][i] > ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
-                        daily_return[ticker].mean() > daily_return["COMP"].mean():
+                        daily_return[ticker].mean() > daily_return["^NYA"].mean():
                 tickers_meeting_criteria[ticker] = daily_return[ticker].mean()
                 count_meeting_criteria += 1
         except Exception as e:
             print(f"{ticker} threw an exception")
 print(f"Total tickers meeting the criteria: {count_meeting_criteria}")
-print(f"COMP Daily Return: {daily_return['COMP'].mean()}")      
+print(f"^NYA Daily Return: {daily_return['^NYA'].mean()}")      
 
 # Sort the dictionary by value in descending order
 sorted_data = dict(sorted(tickers_meeting_criteria.items(), key=lambda item: item[1], reverse=True))
