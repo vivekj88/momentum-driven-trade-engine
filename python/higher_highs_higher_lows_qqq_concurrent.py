@@ -2,8 +2,10 @@ from yahooquery import Ticker
 import yfinance as yf
 import datetime
 import pandas as pd
-import warnings
+import requests
 from concurrent.futures import ThreadPoolExecutor
+import warnings
+from bs4 import BeautifulSoup
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -11,19 +13,26 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 
-# Get tickers
-def get_tickers():
-    filename = 'python/nyse.csv'
+# Get Nasdaq 100 tickers from Wikipedia
+def get_qqq_tickers():
+    # URL of the Wikipedia page for Nasdaq-100
+    url = "https://en.wikipedia.org/wiki/Nasdaq-100"
 
-    tickers=[]
-    with open(filename, "r") as csvfile:
-        # Skip the header line (assuming the first line contains headers)
-        next(csvfile)  # Skip the first line
+    # Send an HTTP request to fetch the page content
+    response = requests.get(url)
 
-        for line in csvfile:
-        # Extract the first element (assuming it's the ticker symbol)
-            tickers.append(line.strip().split(",")[0])
-    tickers.append("^NYA")
+    # Parse the HTML content using BeautifulSoup
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    # Find the table containing the list of companies
+    tables = soup.find_all("table", {"class": "wikitable sortable"})
+
+    # Extract the tickers from the table
+    tickers = []
+    for row in tables[2].findAll("tr")[1:]:
+        ticker = row.findAll("td")[1].text
+        tickers.append(ticker.replace("\n", ""))
+    tickers.append("QQQ")
     return tickers
 
 def check_earnings_and_ex_dividend(stock_symbol):
@@ -70,14 +79,14 @@ def check_earnings_and_ex_dividend(stock_symbol):
         print(f"Exception in check_earnings_and_ex_dividend for {stock_symbol}: {e}")
         return None
 
+
 # Calculate the date range for the last n days
 end_date = datetime.datetime.now()
 start_date = end_date - datetime.timedelta(days=14)
 
 # Download stock data
-tickers = get_tickers()
+tickers = get_qqq_tickers()
 ticker_data = Ticker(tickers, asynchronous=True)
-print(ticker_data.history())
 data = ticker_data.history(period='14d', interval='1d')
 option_chain = ticker_data.option_chain
 all_stocks_data = data
@@ -106,9 +115,9 @@ for ticker in tickers:
         print(f"Ticker {ticker} threw exception {e}")
     
 
-# Calculate daily returns for ^NYA
+# Calculate daily returns for QQQ
 daily_return = {}
-daily_return["^NYA"] = data["adjclose"]["^NYA"].pct_change()
+daily_return["QQQ"] = data["adjclose"]["QQQ"].pct_change()
 
 # Check if each ticker has higher highs and higher lows
 count_meeting_criteria = 0
@@ -121,7 +130,7 @@ for ticker in tickers:
         if len(ticker_highs[ticker]) > 1 and len(ticker_lows[ticker]) > 1 and \
             all(ticker_highs[ticker][i] > ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
                 all(ticker_lows[ticker][i] > ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
-                    daily_return[ticker].mean() > daily_return["^NYA"].mean():
+                    daily_return[ticker].mean() > daily_return["QQQ"].mean():
             tickers_meeting_criteria[ticker] = daily_return[ticker].mean()
             count_meeting_criteria += 1
 
@@ -153,7 +162,7 @@ num_removed = len(set(tickers_meeting_criteria.keys())) - len(set(tickers_meetin
 count_meeting_criteria -= num_removed    
 
 print(f"Total tickers meeting the criteria: {count_meeting_criteria}")
-print(f"^NYA Daily Return: {daily_return['^NYA'].mean()}")      
+print(f"QQQ Daily Return: {daily_return['QQQ'].mean()}")      
 
 # Sort the dictionary by value in descending order
 sorted_data = dict(sorted(tickers_meeting_criteria_filtered.items(), key=lambda item: item[1], reverse=True))
@@ -168,7 +177,7 @@ df = df.reset_index()
 # Rename the index column
 df = df.rename(columns={'index': 'ticker'})
 
-df['relative_strength'] = (df['daily_return'] - daily_return['^NYA'].mean()) * 100 / daily_return['^NYA'].mean()
+df['relative_strength'] = (df['daily_return'] - daily_return['QQQ'].mean()) * 100 / daily_return['QQQ'].mean()
 
 # Print the DataFrame
 print(df)
