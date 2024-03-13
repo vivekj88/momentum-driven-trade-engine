@@ -1,3 +1,4 @@
+import requests
 from yahooquery import Ticker
 import yfinance as yf
 import datetime
@@ -13,7 +14,7 @@ pd.set_option('display.max_columns', None)
 
 # Get tickers
 def get_tickers():
-    filename = 'python/nyse.csv'
+    filename = 'python/nyse2.csv'
 
     tickers=[]
     with open(filename, "r") as csvfile:
@@ -26,49 +27,70 @@ def get_tickers():
     tickers.append("^NYA")
     return tickers
 
-def check_earnings_and_ex_dividend(stock_symbol):
+def fetch_earnings(from_date, to_date):
+  """
+  This function calls the stocktwits API to pull earnings between the specified from_date and to_date.
+
+  Args:
+      from_date: The starting date in YYYY-MM-DD format.
+      to_date: The ending date in YYYY-MM-DD format.
+  """
+
+  # Base URL for the stocktwits earnings API endpoint
+  base_url = "http://api.stocktwits.com/api/2/discover/earnings_calendar"
+
+  # Construct the query parameters
+  params = {
+    "date_from": from_date,
+    "date_to": to_date,
+  }
+
+  try:
+    headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+    }
+
+    # Send a GET request to the API
+    response = requests.get(base_url, params=params, headers=headers)
+    response.raise_for_status()  # Raise an exception for non-200 status codes
+
+    # Parse the JSON response
+    return response.json()
+
+  except requests.exceptions.RequestException as e:
+    print(f"An error occurred while making the API request: {e}")
+
+def check_ex_dividend(stock_symbol):
 
     # Get the stock information
     stock_data = yf.Ticker(stock_symbol)
     stock_info = stock_data.info
 
     try:
-        # Extract earnings announcement date (if available)
-        earnings_dates_exist = False
-        if hasattr(stock_data, 'earnings_dates') and stock_data.earnings_dates is not None and len(stock_data.earnings_dates.get("Reported EPS").index.date) > 0:
-            earnings_dates = stock_data.earnings_dates.get("Reported EPS").index.date
-            earnings_dates_exist = True
 
         # Extract ex-dividend date (if available)
         ex_dividend_date = stock_info.get('exDividendDate')
         if ex_dividend_date:
             ex_dividend_date = pd.to_datetime(ex_dividend_date, unit='s')
 
-        # Check for earnings announcements and ex-dividend dates
-        has_events = False
+        # Check for ex-dividend dates
+        ex_dividend_occurred = False
         today = datetime.date.today()
         today_ts = pd.Timestamp.today()
 
-        if earnings_dates_exist:
-            # Loop through each date
-            for earnings_date in earnings_dates:
-                if earnings_date >= today - datetime.timedelta(days=14) and earnings_date <= today:
-                    has_events = True
-                    break
-
         if ex_dividend_date and ex_dividend_date >= today_ts - pd.Timedelta(days=14) and ex_dividend_date <= today_ts:
-            has_events = True
+            ex_dividend_occurred = True
 
-        if has_events:
-            print(f"{stock_symbol} has events")
+        if ex_dividend_occurred:
+            print(f"Ex-dividend occurred, skipping ticker: {stock_symbol}")
             return None
         else:
-            print(f"{stock_symbol} has no events")
             return stock_symbol
 
     except Exception as e:
-        print(f"Exception in check_earnings_and_ex_dividend for {stock_symbol}: {e}")
+        print(f"Exception in check_ex_dividend for {stock_symbol}: {e}")
         return None
+
 
 # Calculate the date range for the last n days
 end_date = datetime.datetime.now()
@@ -76,11 +98,24 @@ start_date = end_date - datetime.timedelta(days=14)
 
 # Download stock data
 tickers = get_tickers()
+print(tickers)
 ticker_data = Ticker(tickers, asynchronous=True)
-print(ticker_data.history())
-data = ticker_data.history(period='14d', interval='1d')
+print(ticker_data)
 option_chain = ticker_data.option_chain
+data = ticker_data.history(period='14d', interval='1d')
 all_stocks_data = data
+
+# Fetch earnings
+earnings_calendar = fetch_earnings(start_date.date(), end_date.date())
+
+for ticker in tickers:
+    # Iterate over each day's earnings data
+    for date, earnings_data in earnings_calendar["earnings"].items():
+        # Iterate over each stock in the current day's earnings
+        for stock in earnings_data["stocks"]:
+            if stock["symbol"] == ticker and ticker in tickers:
+                print(f"Earnings event occurred, skipping ticker: {ticker}")
+                tickers.remove(ticker)
 
 
 # Initialize dictionaries to track highs and lows for each ticker
@@ -129,26 +164,34 @@ for ticker in tickers:
         print(f"Ticker {ticker} threw exception {e}")
 
 # Remove tickers that are not optionable
+tickers_meeting_criteria_optionable = tickers_meeting_criteria.copy()
 for ticker in tickers_meeting_criteria:
     try:
-        if isinstance(option_chain, str) or option_chain.empty:
-            tickers_meeting_criteria.remove(ticker) 
+        if isinstance(option_chain, pd.DataFrame) and not option_chain.empty:
+            try:
+                a = option_chain.loc[ticker]
+            except:
+                del tickers_meeting_criteria_optionable[ticker] 
+                print(f"Removing non-optionable ticker {ticker}")
+        else:
+            del tickers_meeting_criteria_optionable[ticker]
+            print(f"Removing non-optionable ticker {ticker}")
     except Exception as e:
         print(f"error while checking if {ticker} is optionable {e}")
 
 # Filter out tickers with no price data and no special events
 with ThreadPoolExecutor() as executor:
-    valid_tickers = list(executor.map(check_earnings_and_ex_dividend, tickers_meeting_criteria))
+    valid_tickers = list(executor.map(check_ex_dividend, tickers_meeting_criteria))
       
 # Convert valid_tickers to a set for efficient membership testing
 valid_tickers_set = set(valid_tickers)
 
 # Remove entries from tickers_meeting_criteria using list comprehension
-tickers_meeting_criteria_filtered = {ticker: value for ticker, value in tickers_meeting_criteria.items() 
+tickers_meeting_criteria_filtered = {ticker: value for ticker, value in tickers_meeting_criteria_optionable.items() 
                              if ticker in valid_tickers_set}
 
 # Count the number of removed elements (length of original dictionary minus current length)
-num_removed = len(set(tickers_meeting_criteria.keys())) - len(set(tickers_meeting_criteria_filtered.keys()))
+num_removed = len(set(tickers_meeting_criteria_optionable.keys())) - len(set(tickers_meeting_criteria_filtered.keys()))
 
 count_meeting_criteria -= num_removed    
 
@@ -159,7 +202,6 @@ print(f"^NYA Daily Return: {daily_return['^NYA'].mean()}")
 sorted_data = dict(sorted(tickers_meeting_criteria_filtered.items(), key=lambda item: item[1], reverse=True))
 
 # Create a DataFrame from the sorted dictionary
-# df = pd.DataFrame.from_dict(sorted_data, orient='index', columns=['value'])
 df = pd.DataFrame.from_dict(sorted_data, orient='index', columns=['daily_return'])
 
 # Reset index
