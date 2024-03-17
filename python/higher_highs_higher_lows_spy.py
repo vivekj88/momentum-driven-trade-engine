@@ -185,7 +185,7 @@ num_removed = len(set(tickers_meeting_criteria.keys())) - len(set(tickers_meetin
 count_meeting_criteria -= num_removed    
 
 print(f"Total tickers meeting the criteria: {count_meeting_criteria}")
-print(f"SPY Daily Return: {daily_return['SPY'].mean()}")      
+print(f"SPY Daily Return: {daily_return['SPY'].mean() * 100}")      
 
 # Sort the dictionary by value in descending order
 sorted_data = dict(sorted(tickers_meeting_criteria_filtered.items(), key=lambda item: item[1], reverse=True))

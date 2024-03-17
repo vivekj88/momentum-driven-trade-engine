@@ -152,9 +152,9 @@ for ticker in tickers:
     try:
         daily_return[ticker] = all_stocks_data["adjclose"][ticker].pct_change()
         if len(ticker_highs[ticker]) > 1 and len(ticker_lows[ticker]) > 1 and \
-            all(ticker_highs[ticker][i] > ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
-                all(ticker_lows[ticker][i] > ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
-                    daily_return[ticker].mean() > daily_return["COMP"].mean():
+            all(ticker_highs[ticker][i] < ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
+                all(ticker_lows[ticker][i] < ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
+                    daily_return[ticker].mean() < daily_return["COMP"].mean():
             tickers_meeting_criteria[ticker] = daily_return[ticker].mean()
             count_meeting_criteria += 1
 
@@ -197,7 +197,7 @@ print(f"Total tickers meeting the criteria: {count_meeting_criteria}")
 print(f"COMP Daily Return: {daily_return['COMP'].mean() * 100}")      
 
 # Sort the dictionary by value in descending order
-sorted_data = dict(sorted(tickers_meeting_criteria_filtered.items(), key=lambda item: item[1], reverse=True))
+sorted_data = dict(sorted(tickers_meeting_criteria_filtered.items(), key=lambda item: item[1], reverse=False))
 
 # Create a DataFrame from the sorted dictionary
 df = pd.DataFrame.from_dict(sorted_data, orient='index', columns=['daily_return'])
