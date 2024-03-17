@@ -1,11 +1,10 @@
+import requests
 from yahooquery import Ticker
 import yfinance as yf
 import datetime
 import pandas as pd
-import requests
-from concurrent.futures import ThreadPoolExecutor
 import warnings
-from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -13,26 +12,19 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 
-# Get Nasdaq 100 tickers from Wikipedia
-def get_qqq_tickers():
-    # URL of the Wikipedia page for Nasdaq-100
-    url = "https://en.wikipedia.org/wiki/Nasdaq-100"
+# Get tickers
+def get_tickers():
+    filename = 'python/nyse2.csv'
 
-    # Send an HTTP request to fetch the page content
-    response = requests.get(url)
+    tickers=[]
+    with open(filename, "r") as csvfile:
+        # Skip the header line (assuming the first line contains headers)
+        next(csvfile)  # Skip the first line
 
-    # Parse the HTML content using BeautifulSoup
-    soup = BeautifulSoup(response.content, "html.parser")
-
-    # Find the table containing the list of companies
-    tables = soup.find_all("table", {"class": "wikitable sortable"})
-
-    # Extract the tickers from the table
-    tickers = []
-    for row in tables[2].findAll("tr")[1:]:
-        ticker = row.findAll("td")[1].text
-        tickers.append(ticker.replace("\n", ""))
-    tickers.append("QQQ")
+        for line in csvfile:
+        # Extract the first element (assuming it's the ticker symbol)
+            tickers.append(line.strip().split(",")[0])
+    tickers.append("^NYA")
     return tickers
 
 def fetch_earnings(from_date, to_date):
@@ -105,10 +97,12 @@ end_date = datetime.datetime.now()
 start_date = end_date - datetime.timedelta(days=14)
 
 # Download stock data
-tickers = get_qqq_tickers()
+tickers = get_tickers()
+print(tickers)
 ticker_data = Ticker(tickers, asynchronous=True)
-data = ticker_data.history(period='14d', interval='1d')
+print(ticker_data)
 option_chain = ticker_data.option_chain
+data = ticker_data.history(period='14d', interval='1d')
 all_stocks_data = data
 
 # Fetch earnings
@@ -119,7 +113,7 @@ for ticker in tickers:
     for date, earnings_data in earnings_calendar["earnings"].items():
         # Iterate over each stock in the current day's earnings
         for stock in earnings_data["stocks"]:
-            if stock["symbol"] == ticker:
+            if stock["symbol"] == ticker and ticker in tickers:
                 print(f"Earnings event occurred, skipping ticker: {ticker}")
                 tickers.remove(ticker)
 
@@ -147,9 +141,9 @@ for ticker in tickers:
         print(f"Ticker {ticker} threw exception {e}")
     
 
-# Calculate daily returns for QQQ
+# Calculate daily returns for ^NYA
 daily_return = {}
-daily_return["QQQ"] = data["adjclose"]["QQQ"].pct_change()
+daily_return["^NYA"] = data["adjclose"]["^NYA"].pct_change()
 
 # Check if each ticker has higher highs and higher lows
 count_meeting_criteria = 0
@@ -162,7 +156,7 @@ for ticker in tickers:
         if len(ticker_highs[ticker]) > 1 and len(ticker_lows[ticker]) > 1 and \
             all(ticker_highs[ticker][i] > ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
                 all(ticker_lows[ticker][i] > ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
-                    daily_return[ticker].mean() > daily_return["QQQ"].mean():
+                    daily_return[ticker].mean() > daily_return["^NYA"].mean():
             tickers_meeting_criteria[ticker] = daily_return[ticker].mean()
             count_meeting_criteria += 1
 
@@ -170,10 +164,18 @@ for ticker in tickers:
         print(f"Ticker {ticker} threw exception {e}")
 
 # Remove tickers that are not optionable
+tickers_meeting_criteria_optionable = tickers_meeting_criteria.copy()
 for ticker in tickers_meeting_criteria:
     try:
-        if isinstance(option_chain, str) or option_chain.empty:
-            tickers_meeting_criteria.remove(ticker) 
+        if isinstance(option_chain, pd.DataFrame) and not option_chain.empty:
+            try:
+                a = option_chain.loc[ticker]
+            except:
+                del tickers_meeting_criteria_optionable[ticker] 
+                print(f"Removing non-optionable ticker {ticker}")
+        else:
+            del tickers_meeting_criteria_optionable[ticker]
+            print(f"Removing non-optionable ticker {ticker}")
     except Exception as e:
         print(f"error while checking if {ticker} is optionable {e}")
 
@@ -185,16 +187,16 @@ with ThreadPoolExecutor() as executor:
 valid_tickers_set = set(valid_tickers)
 
 # Remove entries from tickers_meeting_criteria using list comprehension
-tickers_meeting_criteria_filtered = {ticker: value for ticker, value in tickers_meeting_criteria.items() 
+tickers_meeting_criteria_filtered = {ticker: value for ticker, value in tickers_meeting_criteria_optionable.items() 
                              if ticker in valid_tickers_set}
 
 # Count the number of removed elements (length of original dictionary minus current length)
-num_removed = len(set(tickers_meeting_criteria.keys())) - len(set(tickers_meeting_criteria_filtered.keys()))
+num_removed = len(set(tickers_meeting_criteria_optionable.keys())) - len(set(tickers_meeting_criteria_filtered.keys()))
 
 count_meeting_criteria -= num_removed    
 
 print(f"Total tickers meeting the criteria: {count_meeting_criteria}")
-print(f"QQQ Daily Return: {daily_return['QQQ'].mean()}")      
+print(f"^NYA Daily Return: {daily_return['^NYA'].mean()}")      
 
 # Sort the dictionary by value in descending order
 sorted_data = dict(sorted(tickers_meeting_criteria_filtered.items(), key=lambda item: item[1], reverse=True))
@@ -208,7 +210,8 @@ df = df.reset_index()
 # Rename the index column
 df = df.rename(columns={'index': 'ticker'})
 
-df['relative_strength'] = (df['daily_return'] - daily_return['QQQ'].mean()) * 100 / daily_return['QQQ'].mean()
+df['relative_strength'] = (df['daily_return'] - daily_return['^NYA'].mean()) * 100
+df['daily_return'] = df['daily_return'] * 100
 
 # Print the DataFrame
 print(df)
