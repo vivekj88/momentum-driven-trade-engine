@@ -153,10 +153,13 @@ for ticker in tickers:
 
     try:
         daily_return[ticker] = all_stocks_data["adjclose"][ticker].pct_change()
+
+        # Remove penny stocks
         if len(ticker_highs[ticker]) > 1 and len(ticker_lows[ticker]) > 1 and \
             all(ticker_highs[ticker][i] < ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
                 all(ticker_lows[ticker][i] < ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
-                    daily_return[ticker].mean() < daily_return["^NYA"].mean():
+                    daily_return[ticker].mean() < daily_return["^NYA"].mean() and \
+                    all_stocks_data["adjclose"][ticker].iloc[0] > 5:
             tickers_meeting_criteria[ticker] = daily_return[ticker].mean()
             count_meeting_criteria += 1
 
