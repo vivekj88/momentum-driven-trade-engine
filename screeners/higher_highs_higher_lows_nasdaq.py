@@ -13,8 +13,8 @@ pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 
 # Get tickers
-def get_tickers():
-    filename = 'python/nyse2.csv'
+def get_nasdaq_tickers():
+    filename = 'screeners/nasdaq.csv'
 
     tickers=[]
     with open(filename, "r") as csvfile:
@@ -24,13 +24,13 @@ def get_tickers():
         for line in csvfile:
         # Extract the first element (assuming it's the ticker symbol)
             tickers.append(line.strip().split(",")[0])
-    tickers.append("^NYA")
+    tickers.append("COMP")
     return tickers
 
 def fetch_earnings(from_date, to_date):
   """
   This function calls the stocktwits API to pull earnings between the specified from_date and to_date.
-
+[]
   Args:
       from_date: The starting date in YYYY-MM-DD format.
       to_date: The ending date in YYYY-MM-DD format.
@@ -97,12 +97,11 @@ end_date = datetime.datetime.now()
 start_date = end_date - datetime.timedelta(days=14)
 
 # Download stock data
-tickers = get_tickers()
-print(tickers)
+tickers = get_nasdaq_tickers()
 ticker_data = Ticker(tickers, asynchronous=True)
-print(ticker_data)
-option_chain = ticker_data.option_chain
 data = ticker_data.history(period='14d', interval='1d')
+# print(data)
+option_chain = ticker_data.option_chain
 all_stocks_data = data
 
 # Fetch earnings
@@ -126,7 +125,9 @@ ticker_lows = {}
 for ticker in tickers:
 
     try:
-        close_prices = data["adjclose"][ticker]
+        close_prices = data["low"][ticker]
+        # print("close_prices")
+        # print(close_prices)
         highs = []
         lows = []
         for i in range(1, len(close_prices) - 1):
@@ -141,9 +142,9 @@ for ticker in tickers:
         print(f"Ticker {ticker} threw exception {e}")
     
 
-# Calculate daily returns for ^NYA
+# Calculate daily returns for COMP
 daily_return = {}
-daily_return["^NYA"] = data["adjclose"]["^NYA"].pct_change()
+daily_return["COMP"] = data["low"]["COMP"].pct_change()
 
 # Check if each ticker has higher highs and higher lows
 count_meeting_criteria = 0
@@ -152,13 +153,15 @@ for ticker in tickers:
     # Calculate daily returns for stocks
 
     try:
-        daily_return[ticker] = all_stocks_data["adjclose"][ticker].pct_change()
-        # Remove penny stocks
+        daily_return[ticker] = all_stocks_data["low"][ticker].pct_change()
+        # print(f"daily return of {ticker}: {daily_return[ticker]}")
+        # print(f"price of {ticker}: {all_stocks_data['low'][ticker]}")
+        # Remove cheaper stocks
         if len(ticker_highs[ticker]) > 1 and len(ticker_lows[ticker]) > 1 and \
             all(ticker_highs[ticker][i] > ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
                 all(ticker_lows[ticker][i] > ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
-                    daily_return[ticker].mean() > daily_return["^NYA"].mean() and \
-                                        all_stocks_data["adjclose"][ticker].iloc[0] > 5:
+                    daily_return[ticker].mean() > daily_return["COMP"].mean() and \
+                    all_stocks_data["low"][ticker].iloc[0] > 5:
             tickers_meeting_criteria[ticker] = daily_return[ticker].mean()
             count_meeting_criteria += 1
 
@@ -198,7 +201,7 @@ num_removed = len(set(tickers_meeting_criteria_optionable.keys())) - len(set(tic
 count_meeting_criteria -= num_removed    
 
 print(f"Total tickers meeting the criteria: {count_meeting_criteria}")
-print(f"^NYA Daily Return: {daily_return['^NYA'].mean()}")      
+print(f"COMP Daily Return: {daily_return['COMP'].mean() * 100}")      
 
 # Sort the dictionary by value in descending order
 sorted_data = dict(sorted(tickers_meeting_criteria_filtered.items(), key=lambda item: item[1], reverse=True))
@@ -212,7 +215,7 @@ df = df.reset_index()
 # Rename the index column
 df = df.rename(columns={'index': 'ticker'})
 
-df['relative_strength'] = (df['daily_return'] - daily_return['^NYA'].mean()) * 100
+df['relative_strength'] = (df['daily_return'] - daily_return['COMP'].mean()) * 100
 df['daily_return'] = df['daily_return'] * 100
 
 # Print the DataFrame

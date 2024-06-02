@@ -25,11 +25,11 @@ def get_qqq_tickers():
     soup = BeautifulSoup(response.content, "html.parser")
 
     # Find the table containing the list of companies
-    tables = soup.find_all("table", {"class": "wikitable sortable"})
+    table = soup.find("table", {"class": "wikitable sortable"})
 
     # Extract the tickers from the table
     tickers = []
-    for row in tables[2].findAll("tr")[1:]:
+    for row in table.findAll("tr")[1:]:
         ticker = row.findAll("td")[1].text
         tickers.append(ticker.replace("\n", ""))
     tickers.append("QQQ")
@@ -160,9 +160,9 @@ for ticker in tickers:
     try:
         daily_return[ticker] = all_stocks_data["adjclose"][ticker].pct_change()
         if len(ticker_highs[ticker]) > 1 and len(ticker_lows[ticker]) > 1 and \
-            all(ticker_highs[ticker][i] < ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
-                all(ticker_lows[ticker][i] < ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
-                    daily_return[ticker].mean() < daily_return["QQQ"].mean():
+            all(ticker_highs[ticker][i] > ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
+                all(ticker_lows[ticker][i] > ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
+                    daily_return[ticker].mean() > daily_return["QQQ"].mean():
             tickers_meeting_criteria[ticker] = daily_return[ticker].mean()
             count_meeting_criteria += 1
 
@@ -197,7 +197,7 @@ print(f"Total tickers meeting the criteria: {count_meeting_criteria}")
 print(f"QQQ Daily Return: {daily_return['QQQ'].mean() * 100}")      
 
 # Sort the dictionary by value in descending order
-sorted_data = dict(sorted(tickers_meeting_criteria_filtered.items(), key=lambda item: item[1], reverse=False))
+sorted_data = dict(sorted(tickers_meeting_criteria_filtered.items(), key=lambda item: item[1], reverse=True))
 
 # Create a DataFrame from the sorted dictionary
 df = pd.DataFrame.from_dict(sorted_data, orient='index', columns=['daily_return'])

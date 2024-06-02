@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 from concurrent.futures import ThreadPoolExecutor
 import warnings
-from bs4 import BeautifulSoup
+import bs4
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -13,26 +13,17 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 
-# Get Nasdaq 100 tickers from Wikipedia
-def get_qqq_tickers():
-    # URL of the Wikipedia page for Nasdaq-100
-    url = "https://en.wikipedia.org/wiki/Nasdaq-100"
-
-    # Send an HTTP request to fetch the page content
+# Get S&P 500 tickers from Wikipedia
+def get_sp500_tickers():
+    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
     response = requests.get(url)
-
-    # Parse the HTML content using BeautifulSoup
-    soup = BeautifulSoup(response.content, "html.parser")
-
-    # Find the table containing the list of companies
-    tables = soup.find_all("table", {"class": "wikitable sortable"})
-
-    # Extract the tickers from the table
+    soup = bs4.BeautifulSoup(response.text, "lxml")
+    table = soup.find("table", {"class": "wikitable sortable"})
     tickers = []
-    for row in tables[2].findAll("tr")[1:]:
-        ticker = row.findAll("td")[1].text
+    for row in table.findAll("tr")[1:]:
+        ticker = row.findAll("td")[0].text
         tickers.append(ticker.replace("\n", ""))
-    tickers.append("QQQ")
+    tickers.append("SPY")
     return tickers
 
 def fetch_earnings(from_date, to_date):
@@ -105,7 +96,7 @@ end_date = datetime.datetime.now()
 start_date = end_date - datetime.timedelta(days=14)
 
 # Download stock data
-tickers = get_qqq_tickers()
+tickers = get_sp500_tickers()
 ticker_data = Ticker(tickers, asynchronous=True)
 data = ticker_data.history(period='14d', interval='1d')
 option_chain = ticker_data.option_chain
@@ -121,7 +112,10 @@ for ticker in tickers:
         for stock in earnings_data["stocks"]:
             if stock["symbol"] == ticker:
                 print(f"Earnings event occurred, skipping ticker: {ticker}")
-                tickers.remove(ticker)
+                try:
+                    tickers.remove(ticker)
+                except Exception as e:
+                    print(f"Exception while removing ticker {ticker}: {e}")
 
 
 # Initialize dictionaries to track highs and lows for each ticker
@@ -132,7 +126,7 @@ ticker_lows = {}
 for ticker in tickers:
 
     try:
-        close_prices = data["adjclose"][ticker]
+        close_prices = data["low"][ticker]
         highs = []
         lows = []
         for i in range(1, len(close_prices) - 1):
@@ -147,9 +141,9 @@ for ticker in tickers:
         print(f"Ticker {ticker} threw exception {e}")
     
 
-# Calculate daily returns for QQQ
+# Calculate daily returns for SPY
 daily_return = {}
-daily_return["QQQ"] = data["adjclose"]["QQQ"].pct_change()
+daily_return["SPY"] = data["low"]["SPY"].pct_change()
 
 # Check if each ticker has higher highs and higher lows
 count_meeting_criteria = 0
@@ -158,11 +152,12 @@ for ticker in tickers:
     # Calculate daily returns for stocks
 
     try:
-        daily_return[ticker] = all_stocks_data["adjclose"][ticker].pct_change()
+        daily_return[ticker] = all_stocks_data["low"][ticker].pct_change()
         if len(ticker_highs[ticker]) > 1 and len(ticker_lows[ticker]) > 1 and \
             all(ticker_highs[ticker][i] > ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
                 all(ticker_lows[ticker][i] > ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
-                    daily_return[ticker].mean() > daily_return["QQQ"].mean():
+                    daily_return[ticker].mean() > daily_return["SPY"].mean() and \
+                        daily_return[ticker][13] > 0:
             tickers_meeting_criteria[ticker] = daily_return[ticker].mean()
             count_meeting_criteria += 1
 
@@ -194,7 +189,7 @@ num_removed = len(set(tickers_meeting_criteria.keys())) - len(set(tickers_meetin
 count_meeting_criteria -= num_removed    
 
 print(f"Total tickers meeting the criteria: {count_meeting_criteria}")
-print(f"QQQ Daily Return: {daily_return['QQQ'].mean() * 100}")      
+print(f"SPY Daily Return: {daily_return['SPY'].mean() * 100}")      
 
 # Sort the dictionary by value in descending order
 sorted_data = dict(sorted(tickers_meeting_criteria_filtered.items(), key=lambda item: item[1], reverse=True))
@@ -208,7 +203,7 @@ df = df.reset_index()
 # Rename the index column
 df = df.rename(columns={'index': 'ticker'})
 
-df['relative_strength'] = (df['daily_return'] - daily_return['QQQ'].mean()) * 100
+df['relative_strength'] = (df['daily_return'] - daily_return['SPY'].mean()) * 100
 df['daily_return'] = df['daily_return'] * 100
 
 # Print the DataFrame

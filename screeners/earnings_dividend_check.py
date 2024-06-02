@@ -5,9 +5,12 @@ import datetime
 def check_earnings_and_ex_dividend(stock_symbol):
     # Get the stock information
     stock_data = yf.Ticker(stock_symbol)
-    print(stock_data.earnings_dates)
+    # print(stock_data.earnings_dates)
     stock_info = stock_data.info
-    print(stock_info)
+    # print(stock_info)
+    print(f"options: {stock_data.options}")
+    if not stock_data.options:
+        print("NO OPTIONS!!!")
 
     # Extract earnings announcement date (if available)
     earnings_dates_exist = False
@@ -44,6 +47,6 @@ def check_earnings_and_ex_dividend(stock_symbol):
     return f"{earnings_message}\n{ex_dividend_message}"
 
 # Example usage
-stock_symbol = 'AACG'  # Replace with your desired stock symbol
+stock_symbol = 'A'  # Replace with your desired stock symbol
 result = check_earnings_and_ex_dividend(stock_symbol)
 print(result)

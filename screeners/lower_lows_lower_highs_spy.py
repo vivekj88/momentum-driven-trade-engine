@@ -112,7 +112,10 @@ for ticker in tickers:
         for stock in earnings_data["stocks"]:
             if stock["symbol"] == ticker:
                 print(f"Earnings event occurred, skipping ticker: {ticker}")
-                tickers.remove(ticker)
+                try:
+                    tickers.remove(ticker)
+                except Exception as e:
+                    print(f"Exception while removing ticker {ticker}: {e}")
 
 
 # Initialize dictionaries to track highs and lows for each ticker
@@ -123,7 +126,7 @@ ticker_lows = {}
 for ticker in tickers:
 
     try:
-        close_prices = data["adjclose"][ticker]
+        close_prices = data["high"][ticker]
         highs = []
         lows = []
         for i in range(1, len(close_prices) - 1):
@@ -140,7 +143,7 @@ for ticker in tickers:
 
 # Calculate daily returns for SPY
 daily_return = {}
-daily_return["SPY"] = data["adjclose"]["SPY"].pct_change()
+daily_return["SPY"] = data["high"]["SPY"].pct_change()
 
 # Check if each ticker has higher highs and higher lows
 count_meeting_criteria = 0
@@ -149,11 +152,12 @@ for ticker in tickers:
     # Calculate daily returns for stocks
 
     try:
-        daily_return[ticker] = all_stocks_data["adjclose"][ticker].pct_change()
+        daily_return[ticker] = all_stocks_data["high"][ticker].pct_change()
         if len(ticker_highs[ticker]) > 1 and len(ticker_lows[ticker]) > 1 and \
             all(ticker_highs[ticker][i] < ticker_highs[ticker][i - 1] for i in range(1, len(ticker_highs[ticker]))) and \
                 all(ticker_lows[ticker][i] < ticker_lows[ticker][i - 1] for i in range(1, len(ticker_lows[ticker]))) and \
-                    daily_return[ticker].mean() < daily_return["SPY"].mean():
+                    daily_return[ticker].mean() < daily_return["SPY"].mean() and \
+                    daily_return[ticker][13] < 0:
             tickers_meeting_criteria[ticker] = daily_return[ticker].mean()
             count_meeting_criteria += 1
 
