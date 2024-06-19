@@ -1,0 +1,30 @@
+{
+    "date_from": "2024-01-01",
+    "date_to": "2024-03-10",
+    "earnings": {
+      "2024-02-19": {
+        "stocks": [
+          {
+            "importance": 2,
+            "symbol": "RIG",
+            "date": "2024-02-19",
+            "time": "16:15:00",
+            "title": "Transocean"
+          },
+          {
+            "importance": 5,
+            "symbol": "BHP",
+            "date": "2024-02-19",
+            "time": "17:30:00",
+            "title": "BHP Group"
+          }
+        ],
+        "day": "Wednesday",
+        "month": "February",
+        "year": "2024",
+        "date_number": "21",
+        "selected_copy": "NVDA, LCID, RIVN and 167 more stocks reporting Wednesday",
+        "deselected_copy": "NVDA, LCID, RIVN and 167 more stocks reporting Wednesday"
+      }
+    }
+  }
