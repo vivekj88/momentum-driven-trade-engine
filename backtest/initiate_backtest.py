@@ -6,7 +6,8 @@ import pandas_market_calendars as mcal
 program_to_call = "backtest/higher_highs_higher_lows_nasdaq.py"
 
 # Define the start and end dates
-start_date = datetime.datetime.strptime("2024-04-01", "%Y-%m-%d").date()
+start_date = datetime.datetime.strptime("2024-06-03", "%Y-%m-%d").date()
+end_date = datetime.datetime.strptime("2024-06-28", "%Y-%m-%d").date()
 end_date = datetime.date.today()
 
 # Get the NYSE calendar
